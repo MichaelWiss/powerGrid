@@ -1,26 +1,60 @@
 @import "tailwindcss";
 
+/*
+  DESIGN TOKENS — Grid Command Center
+  Earthy, muted palette from the mockup.
+  These CSS custom properties are used throughout the app.
+*/
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Background tones */
+  --bg-primary: #f5f2ea;
+  --bg-panel: #ede9d8;
+  --bg-dark: #1a1a0e;
+  --bg-dark-border: #2e2e1a;
+
+  /* Text */
+  --text-primary: #2a2a20;
+  --text-secondary: #5a5848;
+  --text-muted: #7a7860;
+  --text-subtle: #9a9880;
+  --text-on-dark: #e8e4d4;
+  --text-on-dark-muted: #aaa89a;
+
+  /* Borders */
+  --border-light: #ccc8b4;
+  --border-panel: #d5d1be;
+  --border-row: #eae6d4;
+  --border-dark: #3a3a20;
+
+  /* Source colors — generation types */
+  --color-solar: #e8a020;
+  --color-wind: #3a8ad4;
+  --color-hydro: #3aada0;
+  --color-battery: #5a7ad4;
+  --color-gas: #c05030;
+
+  /* Status colors */
+  --color-ok: #7ab850;
+  --color-warning: #e89a20;
+  --color-danger: #e84a2a;
+  --color-info: #3a7ad4;
+
+  /* Accents */
+  --color-price: #c08020;
+  --color-demand: #3a6898;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--bg-primary);
+  --color-foreground: var(--text-primary);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 12px;
 }

@@ -1,0 +1,350 @@
+
+<div style="font-family: var(--font-mono); font-size: 12px; line-height: 1.7; color: var(--color-text-primary); padding: 1rem 0.5rem; white-space: pre;">
+<span style="color:var(--color-text-secondary)">═══════════════════════════════════════════════════════════════════════════
+  GRID COMMAND CENTER — FULL SYSTEM SCHEMATIC
+  Stack: Next.js · Supabase · Kafka · Redis · Mapbox · Python (black box)
+═══════════════════════════════════════════════════════════════════════════</span>
+
+<span style="color:var(--color-text-secondary)">┌─────────────────────────────────────────────────────────────────────────┐
+│  LAYER 1: EXTERNAL DATA SOURCES                                         │
+└─────────────────────────────────────────────────────────────────────────┘</span>
+
+  [ Open-Meteo API ]          [ Simulated SCADA ]        [ Market Feed ]
+  free, no key required       fake sensor data           spot prices
+  · hourly GHI (W/m²)         · node output MW           · $/MWh every 5min
+  · cloud cover %             · frequency Hz             · carbon credit $/t
+  · wind speed + direction    · voltage %                · day-ahead prices
+  · temperature °C            · transmission load %      · curtailment cost
+  · 3-day forecast            · battery SoC updates
+  fetch every 60 min          simulated every 30s        fetch every 60s
+        |                           |                          |
+        └───────────────────────────┴──────────────────────────┘
+                                    |
+                                    ▼
+
+<span style="color:var(--color-text-secondary)">┌─────────────────────────────────────────────────────────────────────────┐
+│  LAYER 2: NEXT.JS API ROUTES  (you write all of this)                   │
+│  Deployed: Vercel free tier                                             │
+└─────────────────────────────────────────────────────────────────────────┘</span>
+
+  /api/ingest/weather          /api/ingest/grid           /api/market
+  ─────────────────────        ───────────────────        ──────────────
+  fetch Open-Meteo             receive simulated          fetch price feed
+  → run solar model            SCADA telemetry            → write to DB
+  → write solar_forecasts      → write grid_snapshots     → publish to Kafka
+  → write demand_forecasts     → update node status         market.prices
+  → publish Kafka topics:      → publish Kafka topics:
+    forecast.solar               grid.snapshots
+    forecast.demand              grid.node-status
+    weather.updates              alerts.new (if threshold)
+
+  /api/battery/dispatch        /api/simulate              /api/alerts
+  ─────────────────────        ───────────────────        ──────────────
+  receive dispatch command     receive scenario params    GET: list active
+  → validate SoC limits        → write simulation_runs    POST: acknowledge
+  → write to DB                → publish Kafka:           → publish Kafka:
+  → publish Kafka:               simulation.requests        alerts.resolved
+    battery.commands           → return run ID to UI
+  → return confirmation        (result arrives async
+                                via Kafka consumer)
+
+  /api/stream                  /api/grid/snapshot         /api/assets
+  ─────────────────────        ───────────────────        ──────────────
+  Server-Sent Events           GET latest grid state      GET all nodes
+  endpoint — browser           → check Redis cache        GET /[id]/health
+  connects here for            → fallback to Postgres     GET underperforming
+  live map updates             → return JSON              POST maintenance note
+  streams every 5s:
+  · node positions
+  · line congestion %
+  · active alert count
+  · market price
+                                    |
+                                    ▼
+
+<span style="color:var(--color-text-secondary)">┌─────────────────────────────────────────────────────────────────────────┐
+│  LAYER 3: KAFKA EVENT BUS                                               │
+│  Confluent Cloud free tier — 10 GB/month                                │
+└─────────────────────────────────────────────────────────────────────────┘</span>
+
+  TOPIC                     PRODUCER              CONSUMER(S)
+  ─────────────────────     ─────────────────     ───────────────────────
+  grid.snapshots            /api/ingest/grid      → Postgres writer
+                                                  → Redis cache updater
+                                                  → SSE broadcaster
+
+  grid.node-status          /api/ingest/grid      → Postgres writer
+                                                  → alert detector
+                                                  → SSE broadcaster
+
+  forecast.solar            /api/ingest/weather   → Postgres writer
+  forecast.demand           /api/ingest/weather   → Postgres writer
+
+  alerts.new                alert detector        → Postgres writer
+                            /api/ingest/grid      → SSE broadcaster
+                                                  → Redis alert counter
+
+  alerts.resolved           /api/alerts           → Postgres updater
+                                                  → Redis alert counter
+
+  battery.commands          /api/battery          → Postgres writer
+                                                  → SSE broadcaster
+                                                  → Python service (log)
+
+  battery.status            battery sim           → Postgres writer
+                                                  → Redis SoC cache
+
+  market.prices             /api/market           → Postgres writer
+                                                  → Redis price cache
+
+  simulation.requests       /api/simulate         → Python microservice
+  simulation.results        Python microservice   → Postgres writer
+                                                  → SSE broadcaster
+
+  weather.updates           /api/ingest/weather   → Postgres writer
+                                                  ▼
+
+<span style="color:var(--color-text-secondary)">┌─────────────────────────────────────────────────────────────────────────┐
+│  LAYER 4: STORAGE                                                       │
+└─────────────────────────────────────────────────────────────────────────┘</span>
+
+  ┌── SUPABASE POSTGRES (PostGIS) ──────────────────────────────────────┐
+  │  Free tier: 500MB, 2 cores                                          │
+  │                                                                     │
+  │  generation_nodes          transmission_lines                       │
+  │  ─────────────────         ──────────────────                       │
+  │  id, name, type            id, from_bus, to_bus                     │
+  │  location (GEOGRAPHY)      capacity_mw                              │
+  │  capacity_mw               current_load_mw                          │
+  │  current_output_mw         load_pct                                 │
+  │  status                    status (normal/congested/critical)        │
+  │  efficiency_pct            from_coords, to_coords                   │
+  │  region                                                             │
+  │                            alerts                                   │
+  │  grid_snapshots            ──────                                   │
+  │  ──────────────            id, severity, message                    │
+  │  time (TIMESTAMPTZ)        node_id (FK), region                     │
+  │  total_demand_gw           acknowledged, created_at                 │
+  │  renewable_gen_gw                                                   │
+  │  grid_balance_gw           battery_storage                          │
+  │  curtailment_gw            ───────────────                          │
+  │  co2_intensity             id, name, region                         │
+  │  market_price_mwh          location (GEOGRAPHY)                     │
+  │  frequency_hz              capacity_mwh                             │
+  │  reserve_margin_gw         current_soc_pct                          │
+  │  synthetic_inertia_pct     current_dispatch_mw                      │
+  │  ramp_rate_mw_min          status                                   │
+  │  solar/wind/hydro/gas GW                                            │
+  │                            simulation_runs                          │
+  │  solar_forecasts           ───────────────                          │
+  │  demand_forecasts          id, scenario_type                        │
+  │  market_data               params (JSONB)                           │
+  │  asset_health              result (JSONB)                           │
+  │                            status, started_at                       │
+  │  KEY INDEXES:                                                       │
+  │  GIST on all GEOGRAPHY cols (proximity queries)                     │
+  │  DESC on time cols (latest-first reads)                             │
+  │  Partial index on alerts WHERE acknowledged = false                 │
+  └─────────────────────────────────────────────────────────────────────┘
+
+  ┌── UPSTASH REDIS ────────────────────────────────────────────────────┐
+  │  Free tier: 10,000 requests/day                                     │
+  │                                                                     │
+  │  KEY                           TTL    VALUE                         │
+  │  grid:latest_snapshot          10s    full JSON snapshot            │
+  │  grid:node_positions           30s    array of {id,lat,lng,output}  │
+  │  grid:critical_alert_count     60s    integer                       │
+  │  grid:market_price             60s    float $/MWh                   │
+  │  battery:{id}:soc              30s    float %                       │
+  │  line:{id}:load_pct            30s    float %                       │
+  │  ratelimit:sim:{userId}        60s    request counter               │
+  │                                                                     │
+  │  WHY REDIS:                                                         │
+  │  Live map refreshes every 5s — 12 req/min per user.                 │
+  │  Redis absorbs those reads. Postgres only writes.                   │
+  └─────────────────────────────────────────────────────────────────────┘
+                                    |
+                                    ▼
+
+<span style="color:var(--color-text-secondary)">┌─────────────────────────────────────────────────────────────────────────┐
+│  LAYER 5: PYTHON MICROSERVICE  (black box — write once, never touch)    │
+│  Deployed: Render.com free tier                                         │
+│  ~150 lines total. Claude writes it. You paste it. Done.                │
+└─────────────────────────────────────────────────────────────────────────┘</span>
+
+  Listens on Kafka: simulation.requests
+  Endpoint:         POST /simulate
+  Auth:             shared secret header
+
+  INPUT  → { scenario_type, affected_node_id, demand_gw,
+              battery_states[], transmission_loads[],
+              generation_by_source{}, duration_hours }
+
+  INSIDE → builds PyPSA network with buses + generators + storage
+         → applies scenario (trips a node, spikes demand, etc.)
+         → runs linear optimal power flow via HiGHS solver (free)
+         → extracts: who dispatched, what load was shed, cascade chain
+
+  OUTPUT → { cascade_events[], load_shed_mw, recovery_minutes,
+              hourly_snapshots[], affected_nodes[],
+              estimated_cost_usd }
+
+  Publishes result to Kafka: simulation.results
+  Next.js consumer writes to DB + SSE to browser
+
+  SCENARIO TYPES SUPPORTED:
+  · outage          — specific node goes offline
+  · cascade_failure — node trips, overloads neighbors, chain reaction
+  · demand_spike    — +N GW sudden increase
+  · weather_event   — cloud front reduces solar by X% for Y hours
+  · battery_dispatch — optimize storage across all assets for revenue
+                                    |
+                                    ▼
+
+<span style="color:var(--color-text-secondary)">┌─────────────────────────────────────────────────────────────────────────┐
+│  LAYER 6: NEXT.JS FRONTEND  (you write all of this)                     │
+│  State: Zustand · Data fetching: SWR · Real-time: SSE client            │
+└─────────────────────────────────────────────────────────────────────────┘</span>
+
+  PAGE              COMPONENTS                  DATA SOURCE
+  ────────────────  ──────────────────────────  ─────────────────────────
+  / (command        KpiBar                      SSE stream (live)
+    center)         GenerationMixPanel          /api/grid/snapshot
+                    GridStatusPanel             /api/alerts (SWR 10s)
+                    LiveMapEmbed (small)        /api/battery (SWR 15s)
+                    BatteryTable                /api/market (SWR 60s)
+                    AlertsFeed                  /api/forecast/demand
+                    MarketPriceChart
+                    DemandForecastChart
+                    ScenarioButtons
+                    AssetHealthSummary
+
+  /map              MapboxGL fullscreen         SSE stream (live)
+  (full-screen      TransmissionLines layer     /api/grid/nodes
+   ops map)         NodeMarkers layer           /api/grid/lines
+                    WeatherOverlay layer        /api/forecast/weather
+                    CongestedLineHighlight      Redis cache (via API)
+                    NodeDetailPanel (click)
+                    AnimatedFlowLines
+                    LayerToggles (solar/wind/
+                      hydro/battery/weather)
+
+  /scenarios        ScenarioTypeSelector        /api/simulate (POST)
+  (simulation       NodePickerMap               /api/simulate/[id] (poll)
+   engine)          ParamSliders                SSE for result stream
+                    RunSimulationButton
+                    CascadeTimeline
+                    BeforeAfterMapSplit
+                    LoadShedSummary
+
+  /forecast         SolarForecastGrid           /api/forecast/solar (SWR)
+  (24h forecast     RegionalForecastCards       /api/forecast/demand (SWR)
+   room)            CloudCoverWarnings          /api/forecast/weather
+                    DemandConfidenceBands       Open-Meteo direct
+                    RampRateChart
+                    PeakAlertBanner
+
+  /batteries        BatteryGrid (all assets)    /api/battery (SWR 15s)
+  (storage ops)     SoCGauges                   /api/battery/[id]/history
+                    ChargeHistoryChart          SSE for live dispatch
+                    RevenuePerAssetTable
+                    DispatchControls
+                    OptimizeButton → Python
+
+  /assets           AssetHealthTable            /api/assets (SWR 60s)
+  (fleet health)    PerformanceVsExpected       /api/assets/[id]/health
+                    AnomalyScoreBadges          /api/assets/underperforming
+                    MaintenanceCalendar
+                    DegradationTrendChart
+
+  /analytics        Superset iframe embed       Superset → Postgres direct
+  (historical)      (or direct Chart.js         (bypasses Next.js entirely)
+                     queries to Postgres)
+
+<span style="color:var(--color-text-secondary)">┌─────────────────────────────────────────────────────────────────────────┐
+│  LAYER 7: ANALYTICS                                                     │
+│  Apache Superset — Render.com free tier                                 │
+└─────────────────────────────────────────────────────────────────────────┘</span>
+
+  Connects directly to Supabase Postgres (read-only user)
+
+  DASHBOARDS TO BUILD:
+  · Fuel mix over time (stacked area: solar/wind/hydro/battery/gas)
+  · CO₂ intensity by region — heatmap by hour of day
+  · Curtailment cost — daily waste in dollars
+  · Battery revenue — earnings per asset per week
+  · Grid frequency stability — histogram of deviation from 60Hz
+  · Demand forecast accuracy — actual vs predicted MAE by week
+  · Asset underperformance — ranked table, rolling 30 days
+  · Market price vs renewable % — scatter, are they correlated?
+
+<span style="color:var(--color-text-secondary)">┌─────────────────────────────────────────────────────────────────────────┐
+│  LAYER 8: BACKGROUND JOBS                                               │
+│  GitHub Actions free tier — 2,000 min/month                             │
+└─────────────────────────────────────────────────────────────────────────┘</span>
+
+  CRON                SCHEDULE    WHAT IT DOES
+  ─────────────────   ─────────   ─────────────────────────────────────
+  ingest-weather      every 1h    fetch Open-Meteo → run solar model
+                                  → write forecasts → publish Kafka
+
+  update-demand       every 1h    recalculate 24h demand forecast
+                                  using temp + hour + day-of-week model
+
+  score-assets        every 6h    compare actual vs expected output
+                                  → update anomaly scores
+                                  → create alert if score > 0.7
+
+  prune-snapshots     daily       delete grid_snapshots older than 90d
+                                  (keep Supabase free tier under 500MB)
+
+  market-prices       every 1h    fetch latest spot price
+                                  → write to DB + Redis
+
+<span style="color:var(--color-text-secondary)">┌─────────────────────────────────────────────────────────────────────────┐
+│  SSE REAL-TIME FLOW  (the live map heartbeat)                           │
+└─────────────────────────────────────────────────────────────────────────┘</span>
+
+  Browser connects to GET /api/stream
+        |
+        | (keeps connection open)
+        |
+  Server reads Redis every 5s:
+        · grid:node_positions       → node output + status
+        · grid:latest_snapshot      → KPI bar numbers
+        · grid:critical_alert_count → header badge
+        · grid:market_price         → price ticker
+        |
+        | sends as SSE events:
+        |   event: grid-update
+        |   data: { nodes, snapshot, alertCount, price }
+        |
+  Browser receives → Zustand store update → React re-render
+  (Mapbox layer data updates in place — no full re-render)
+
+<span style="color:var(--color-text-secondary)">┌─────────────────────────────────────────────────────────────────────────┐
+│  FREE TIER LIMITS  (know before you hit them)                           │
+└─────────────────────────────────────────────────────────────────────────┘</span>
+
+  SERVICE           LIMIT                   YOUR USAGE ESTIMATE
+  ───────────────   ─────────────────────   ────────────────────────────
+  Vercel            100GB bandwidth/mo       ~1GB — fine
+  Supabase          500MB DB, 2 cores        ~80MB data, light queries
+  Confluent Kafka   10GB/mo                  ~200MB/mo at 30s intervals
+  Upstash Redis     10,000 req/day           ~8,000/day (5s SSE × 1 user)
+  Mapbox            50,000 map loads/mo      fine for dev/demo
+  Render (Python)   spins down after 15min   first sim after idle = 30s
+  GitHub Actions    2,000 min/mo             ~300 min/mo for crons
+  Open-Meteo        unlimited                no limits, ever
+
+<span style="color:var(--color-text-secondary)">┌─────────────────────────────────────────────────────────────────────────┐
+│  BUILD ORDER                                                            │
+└─────────────────────────────────────────────────────────────────────────┘</span>
+
+  WK 1-2   Supabase schema + seed 20 fake nodes + basic Next.js shell
+  WK 3-4   Mapbox map + plot nodes + click panel + transmission lines
+  WK 5-6   Open-Meteo cron + solar model + Kafka wired + SSE stream
+  WK 7-8   Full command center dashboard + all panels + alert feed
+  WK 9     Python sim service + scenario engine + cascade map animation
+  WK 10    Superset dashboards + asset health + polish + Vercel deploy
+</div>

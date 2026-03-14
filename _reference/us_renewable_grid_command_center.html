@@ -1,0 +1,508 @@
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-sans, 'Georgia', serif); }
+  .dash { background: #f5f2ea; color: #2a2a20; min-height: 100vh; padding: 0; font-size: 12px; }
+  .header { background: #1a1a0e; color: #e8e4d4; padding: 8px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #3a3a20; }
+  .header-title { font-size: 15px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: #e8e4d4; }
+  .header-right { display: flex; align-items: center; gap: 16px; font-size: 12px; color: #aaa89a; }
+  .clock { color: #c8c4aa; font-weight: 500; }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #e05a3a; display: inline-block; }
+  .body { display: grid; grid-template-columns: 168px 1fr 178px; gap: 0; height: calc(100vh - 38px); min-height: 560px; }
+  .panel { border-right: 1px solid #ccc8b4; padding: 10px; overflow: hidden; }
+  .panel-title { font-size: 10px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: #7a7860; margin-bottom: 8px; padding-bottom: 5px; border-bottom: 1px solid #d5d1be; }
+  .gen-row { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; }
+  .gen-icon { width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+  .gen-label { flex: 1; font-size: 11px; color: #4a4838; }
+  .gen-val { font-size: 12px; font-weight: 500; color: #2a2820; width: 46px; text-align: right; }
+  .bar-bg { width: 100%; height: 3px; background: #ddd9c8; border-radius: 2px; margin-top: 2px; }
+  .bar-fill { height: 3px; border-radius: 2px; }
+  .stat-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
+  .stat-label { font-size: 10px; color: #6a6854; display: flex; align-items: center; gap: 4px; }
+  .stat-val { font-size: 12px; font-weight: 500; color: #2a2820; }
+  .badge { font-size: 9px; padding: 2px 6px; border-radius: 2px; font-weight: 500; letter-spacing: 0.05em; }
+  .badge-green { background: #d4e8c2; color: #3a6010; }
+  .badge-red { background: #f0d4c4; color: #8a3010; }
+  .badge-amber { background: #f0e4c4; color: #7a5010; }
+  .mini-chart { position: relative; height: 64px; margin-top: 4px; }
+  .map-area { background: #e8e4d4; position: relative; overflow: hidden; }
+  .kpi-bar { background: #1a1a0e; display: grid; grid-template-columns: repeat(5, 1fr); border-bottom: 1px solid #3a3a20; }
+  .kpi-cell { padding: 7px 10px; border-right: 1px solid #2e2e1a; text-align: center; }
+  .kpi-cell:last-child { border-right: none; }
+  .kpi-label { font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: #7a7860; margin-bottom: 2px; }
+  .kpi-val { font-size: 18px; font-weight: 400; color: #e8e4d4; line-height: 1; }
+  .kpi-unit { font-size: 10px; color: #8a8870; margin-left: 2px; }
+  .kpi-delta { font-size: 10px; color: #7ab850; }
+  .right-panel { padding: 10px; overflow-y: auto; border-left: 1px solid #ccc8b4; }
+  .alert-item { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #e0dcc8; }
+  .alert-item:last-child { border-bottom: none; }
+  .alert-icon { width: 14px; height: 14px; border-radius: 2px; display: flex; align-items: center; justify-content: center; font-size: 9px; flex-shrink: 0; margin-top: 1px; }
+  .alert-red { background: #e84a2a; color: white; }
+  .alert-amber { background: #e89a20; color: white; }
+  .alert-blue { background: #3a7ad4; color: white; }
+  .alert-text { font-size: 11px; color: #3a3828; line-height: 1.3; flex: 1; }
+  .alert-time { font-size: 10px; color: #9a9880; flex-shrink: 0; }
+  .price-big { font-size: 22px; font-weight: 400; color: #2a2820; }
+  .price-unit { font-size: 11px; color: #7a7860; }
+  .price-delta { font-size: 12px; color: #d06020; }
+  .forecast-chart { position: relative; height: 80px; margin-top: 6px; }
+  .battery-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  .battery-table th { font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: #7a7860; font-weight: 400; padding: 3px 4px; border-bottom: 1px solid #d5d1be; text-align: left; }
+  .battery-table td { padding: 5px 4px; font-size: 11px; color: #3a3828; border-bottom: 1px solid #eae6d4; vertical-align: middle; }
+  .soc-bar { width: 64px; height: 8px; background: #e0dcc8; border-radius: 2px; position: relative; overflow: hidden; display: inline-block; }
+  .soc-fill { height: 100%; border-radius: 2px; }
+  .dispatch-pos { color: #3a7820; font-weight: 500; }
+  .dispatch-neg { color: #c03820; font-weight: 500; }
+  .bottom-bar { background: #1a1a0e; display: flex; border-top: 1px solid #3a3a20; }
+  .bottom-btn { flex: 1; padding: 8px 4px; text-align: center; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: #9a9880; border-right: 1px solid #2e2e1a; cursor: pointer; transition: background 0.15s, color 0.15s; }
+  .bottom-btn:last-child { border-right: none; }
+  .bottom-btn:hover { background: #2a2a14; color: #e8e4d4; }
+  .map-svg { width: 100%; height: 100%; }
+  .node-pulse { animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.55} }
+  .flow-line { stroke-dasharray: 6 4; animation: flow 1.8s linear infinite; }
+  @keyframes flow { to { stroke-dashoffset: -20; } }
+  .flow-line-rev { stroke-dasharray: 6 4; animation: flowrev 2.2s linear infinite; }
+  @keyframes flowrev { to { stroke-dashoffset: 20; } }
+  .freq-badge { display: inline-flex; align-items: center; gap: 4px; }
+  .inertia-bar { width: 100%; height: 4px; background: #e0dcc8; border-radius: 2px; margin-top: 2px; }
+  .inertia-fill { height: 4px; border-radius: 2px; background: linear-gradient(90deg, #e8a020, #5a9a20); width: 72%; }
+  .ramp-arrow { font-size: 14px; }
+  .scenario-btn { display: inline-block; font-size: 10px; padding: 3px 8px; border: 1px solid #b0ac98; border-radius: 2px; color: #5a5848; cursor: pointer; margin-right: 4px; margin-bottom: 4px; background: #ede9d8; transition: background 0.15s; }
+  .scenario-btn:hover { background: #ddd9c8; color: #2a2820; }
+  .weather-badge { font-size: 9px; padding: 2px 5px; border-radius: 2px; background: #daf0e8; color: #1a6040; margin-left: 4px; }
+  .cascade-badge { font-size: 9px; padding: 2px 5px; border-radius: 2px; background: #fde4d4; color: #7a2010; margin-left: 4px; }
+  .map-container { display: flex; flex-direction: column; height: 100%; }
+  .map-svg-wrap { flex: 1; position: relative; overflow: hidden; }
+</style>
+
+<div class="dash">
+  <div class="header">
+    <div class="header-title">US Renewable Grid Command Center — Real-Time Operations</div>
+    <div class="header-right">
+      <span class="clock" id="clk">18:42:07 UTC</span>
+      <span class="status-dot"></span>
+      <span style="font-size:11px">LIVE</span>
+      <span style="cursor:pointer;color:#aaa">&#9881;</span>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; height:calc(100% - 38px);">
+    <!-- KPI Bar -->
+    <div class="kpi-bar">
+      <div class="kpi-cell">
+        <div class="kpi-label">Total Demand</div>
+        <div><span class="kpi-val">82.4</span><span class="kpi-unit">GW</span></div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-label">Renewable Gen</div>
+        <div><span class="kpi-val">76.8</span><span class="kpi-unit">GW</span></div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-label">Grid Balance</div>
+        <div><span class="kpi-val" style="color:#7ab850">+5.6</span><span class="kpi-unit">GW</span></div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-label">Curtailment</div>
+        <div><span class="kpi-val" style="color:#e89a20">1.2</span><span class="kpi-unit">GW</span></div>
+        <div style="font-size:9px;color:#8a8870;margin-top:1px">Wasted renewable</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-label">CO₂ Intensity</div>
+        <div><span class="kpi-val" style="color:#7ab850">114</span><span class="kpi-unit">g/kWh</span></div>
+        <div class="kpi-delta">↓ 18% vs avg</div>
+      </div>
+    </div>
+
+    <div class="body" style="flex:1; min-height:0;">
+      <!-- LEFT PANEL -->
+      <div class="panel" style="display:flex;flex-direction:column;gap:0;overflow-y:auto;">
+        <div class="panel-title">Generation</div>
+        <div class="gen-row">
+          <div class="gen-icon">☀</div>
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span class="gen-label">Solar</span>
+              <span class="gen-val">34.2 GW</span>
+            </div>
+            <div class="bar-bg"><div class="bar-fill" style="width:72%;background:#e8a020"></div></div>
+          </div>
+        </div>
+        <div class="gen-row">
+          <div class="gen-icon">🌬</div>
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span class="gen-label">Wind</span>
+              <span class="gen-val">28.1 GW</span>
+            </div>
+            <div class="bar-bg"><div class="bar-fill" style="width:59%;background:#3a8ad4"></div></div>
+          </div>
+        </div>
+        <div class="gen-row">
+          <div class="gen-icon">💧</div>
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span class="gen-label">Hydro</span>
+              <span class="gen-val">7.4 GW</span>
+            </div>
+            <div class="bar-bg"><div class="bar-fill" style="width:28%;background:#3aada0"></div></div>
+          </div>
+        </div>
+        <div class="gen-row">
+          <div class="gen-icon">🔋</div>
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span class="gen-label">Battery</span>
+              <span class="gen-val">6.8 GW</span>
+            </div>
+            <div class="bar-bg"><div class="bar-fill" style="width:23%;background:#5a7ad4"></div></div>
+          </div>
+        </div>
+        <div class="gen-row">
+          <div class="gen-icon">🔥</div>
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span class="gen-label">Gas (peak)</span>
+              <span class="gen-val">5.9 GW</span>
+            </div>
+            <div class="bar-bg"><div class="bar-fill" style="width:16%;background:#c05030"></div></div>
+          </div>
+        </div>
+
+        <div class="panel-title" style="margin-top:10px">Grid Health</div>
+        <div class="stat-row">
+          <span class="stat-label">Frequency</span>
+          <span><span class="stat-val">59.98</span><span style="font-size:10px;color:#7a7860"> Hz</span>&nbsp;<span class="badge badge-green">STABLE</span></span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Inertia</span>
+          <span class="stat-val" style="color:#c07820">↓ MED</span>
+        </div>
+        <div class="inertia-bar"><div class="inertia-fill"></div></div>
+        <div style="font-size:9px;color:#9a9880;margin-top:2px;margin-bottom:6px">Synthetic inertia at 72%</div>
+        <div class="stat-row">
+          <span class="stat-label">Reserve</span>
+          <span class="stat-val">+6.1 GW</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Voltage</span>
+          <span class="stat-val">98.7%</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Ramp rate</span>
+          <span class="stat-val" style="color:#c07820">+420 MW/min</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">TX Load</span>
+          <span class="stat-val">73%</span>
+        </div>
+        <div class="bar-bg" style="margin-bottom:2px"><div class="bar-fill" style="width:73%;background:#c07820"></div></div>
+
+        <div class="panel-title" style="margin-top:10px">Interconnect Flow</div>
+        <div class="stat-row">
+          <span class="stat-label">West→East</span>
+          <span class="stat-val">+3.2 GW</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">ERCOT</span>
+          <span><span class="stat-val">Isolated</span>&nbsp;<span class="badge badge-amber">ISO</span></span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Canada</span>
+          <span class="stat-val">+0.8 GW</span>
+        </div>
+
+        <div class="panel-title" style="margin-top:10px">Production (GW)</div>
+        <div class="mini-chart"><canvas id="miniChart"></canvas></div>
+      </div>
+
+      <!-- MAP AREA -->
+      <div class="map-area map-container">
+        <div class="map-svg-wrap">
+          <svg class="map-svg" viewBox="0 0 560 380" xmlns="http://www.w3.org/2000/svg">
+            <!-- Map background - stylized US -->
+            <rect width="560" height="380" fill="#ddd9c8"/>
+            <!-- Landmass simplified -->
+            <path d="M30,80 L60,60 L120,50 L180,45 L260,40 L330,38 L390,42 L450,48 L500,55 L530,70 L540,100 L535,140 L520,170 L510,200 L505,230 L500,260 L490,280 L470,300 L440,310 L400,320 L360,325 L320,330 L280,332 L240,330 L200,325 L160,315 L130,305 L100,285 L80,260 L60,240 L40,220 L25,190 L20,160 L22,130 L28,100 Z" fill="#e8e4d4" stroke="#ccc8b4" stroke-width="1"/>
+            <!-- Water bodies -->
+            <ellipse cx="480" cy="120" rx="28" ry="18" fill="#b8d4e8" opacity="0.7"/>
+            <ellipse cx="450" cy="140" rx="22" ry="14" fill="#b8d4e8" opacity="0.6"/>
+            <!-- Great Lakes suggestion -->
+            <path d="M400,90 Q420,85 440,92 Q445,100 430,105 Q410,108 398,100 Z" fill="#b8d4e8" opacity="0.6"/>
+
+            <!-- Transmission lines -->
+            <line class="flow-line" x1="100" y1="140" x2="220" y2="160" stroke="#c08020" stroke-width="1.5" fill="none"/>
+            <line class="flow-line" x1="220" y1="160" x2="350" y2="130" stroke="#c08020" stroke-width="1.5" fill="none"/>
+            <line class="flow-line" x1="350" y1="130" x2="450" y2="120" stroke="#c08020" stroke-width="1.5" fill="none"/>
+            <line class="flow-line-rev" x1="450" y1="120" x2="450" y2="200" stroke="#8a9020" stroke-width="1.2" fill="none"/>
+            <line class="flow-line" x1="350" y1="130" x2="380" y2="210" stroke="#c08020" stroke-width="1.2" fill="none"/>
+            <line class="flow-line" x1="220" y1="160" x2="240" y2="240" stroke="#9a8020" stroke-width="1" fill="none"/>
+            <!-- Congested line (red dashes) -->
+            <line x1="380" y1="210" x2="450" y2="200" stroke="#d04020" stroke-width="2" stroke-dasharray="5,3" fill="none"/>
+            <text x="415" y="215" font-size="8" fill="#d04020" text-anchor="middle" font-family="sans-serif">94% load</text>
+
+            <!-- Solar farms -->
+            <g class="node-pulse">
+              <rect x="75" y="215" width="22" height="18" rx="3" fill="#f0c050" stroke="#c09020" stroke-width="1"/>
+              <text x="86" y="227" font-size="8" text-anchor="middle" fill="#7a5010" font-family="sans-serif">☀</text>
+            </g>
+            <g class="node-pulse" style="animation-delay:0.4s">
+              <rect x="168" y="260" width="22" height="18" rx="3" fill="#f0c050" stroke="#c09020" stroke-width="1"/>
+              <text x="179" y="272" font-size="8" text-anchor="middle" fill="#7a5010" font-family="sans-serif">☀</text>
+            </g>
+            <g class="node-pulse" style="animation-delay:0.8s">
+              <rect x="295" y="258" width="22" height="18" rx="3" fill="#f0c050" stroke="#c09020" stroke-width="1"/>
+              <text x="306" y="270" font-size="8" text-anchor="middle" fill="#7a5010" font-family="sans-serif">☀</text>
+            </g>
+
+            <!-- Wind farms -->
+            <g class="node-pulse" style="animation-delay:0.3s">
+              <circle cx="160" cy="90" r="10" fill="#b8d8f0" stroke="#3a8ad4" stroke-width="1"/>
+              <text x="160" y="94" font-size="9" text-anchor="middle" fill="#1a4870" font-family="sans-serif">🌬</text>
+            </g>
+            <g class="node-pulse" style="animation-delay:0.9s">
+              <circle cx="290" cy="165" r="10" fill="#b8d8f0" stroke="#3a8ad4" stroke-width="1"/>
+              <text x="290" y="169" font-size="9" text-anchor="middle" fill="#1a4870" font-family="sans-serif">🌬</text>
+            </g>
+            <g class="node-pulse" style="animation-delay:1.4s">
+              <circle cx="370" cy="185" r="10" fill="#b8d8f0" stroke="#3a8ad4" stroke-width="1"/>
+              <text x="370" y="189" font-size="9" text-anchor="middle" fill="#1a4870" font-family="sans-serif">🌬</text>
+            </g>
+
+            <!-- Hydro nodes -->
+            <circle cx="105" cy="145" r="9" fill="#c8ede8" stroke="#3aada0" stroke-width="1"/>
+            <text x="105" y="149" font-size="8" text-anchor="middle" fill="#1a5850" font-family="sans-serif">💧</text>
+
+            <!-- Grid hubs -->
+            <circle cx="220" cy="160" r="7" fill="#1a1a0e" stroke="#c8c4aa" stroke-width="1"/>
+            <circle cx="350" cy="130" r="8" fill="#1a1a0e" stroke="#c8c4aa" stroke-width="1"/>
+            <circle cx="450" cy="120" r="7" fill="#1a1a0e" stroke="#c8c4aa" stroke-width="1"/>
+            <circle cx="380" cy="210" r="7" fill="#1a1a0e" stroke="#c8c4aa" stroke-width="1"/>
+            <circle cx="450" cy="200" r="7" fill="#1a1a0e" stroke="#e8a020" stroke-width="1.5"/>
+
+            <!-- City labels -->
+            <text x="95" y="165" font-size="9" fill="#3a3828" font-family="sans-serif" font-weight="500">Seattle</text>
+            <text x="75" y="230" font-size="9" fill="#3a3828" font-family="sans-serif" font-weight="500">SF</text>
+            <text x="75" y="275" font-size="9" fill="#3a3828" font-family="sans-serif" font-weight="500">LA</text>
+            <text x="215" y="190" font-size="9" fill="#3a3828" font-family="sans-serif" font-weight="500">Denver</text>
+            <text x="335" y="155" font-size="9" fill="#3a3828" font-family="sans-serif" font-weight="500">Chicago</text>
+            <text x="440" y="140" font-size="9" fill="#3a3828" font-family="sans-serif" font-weight="500">Boston</text>
+            <text x="365" y="230" font-size="9" fill="#3a3828" font-family="sans-serif" font-weight="500">Dallas</text>
+            <text x="430" y="218" font-size="9" fill="#d04020" font-family="sans-serif" font-weight="500">Atlanta ⚠</text>
+            <text x="420" y="305" font-size="9" fill="#3a3828" font-family="sans-serif" font-weight="500">Miami</text>
+
+            <!-- Weather front overlay -->
+            <path d="M100,50 Q160,30 220,55 Q180,90 120,80 Z" fill="#b8c8e0" opacity="0.35"/>
+            <text x="155" y="62" font-size="7" fill="#3a5878" text-anchor="middle" font-family="sans-serif">Cloud front</text>
+            <text x="155" y="72" font-size="7" fill="#3a5878" text-anchor="middle" font-family="sans-serif">↓ solar -8GW in 2h</text>
+
+            <!-- CO2 intensity legend -->
+            <rect x="16" y="295" width="90" height="58" rx="3" fill="#ede9d8" stroke="#ccc8b4" stroke-width="0.5" opacity="0.9"/>
+            <text x="24" y="308" font-size="8" fill="#5a5848" font-family="sans-serif" font-weight="500">CO₂ INTENSITY</text>
+            <rect x="20" y="313" width="12" height="8" rx="1" fill="#c8e8c0"/>
+            <text x="36" y="321" font-size="8" fill="#5a5848" font-family="sans-serif">West: 88g</text>
+            <rect x="20" y="325" width="12" height="8" rx="1" fill="#f0e8b0"/>
+            <text x="36" y="333" font-size="8" fill="#5a5848" font-family="sans-serif">Mid: 142g</text>
+            <rect x="20" y="337" width="12" height="8" rx="1" fill="#f0c8a0"/>
+            <text x="36" y="345" font-size="8" fill="#5a5848" font-family="sans-serif">East: 178g</text>
+
+            <!-- Legend -->
+            <rect x="198" y="295" width="120" height="70" rx="3" fill="#ede9d8" stroke="#ccc8b4" stroke-width="0.5" opacity="0.9"/>
+            <text x="206" y="308" font-size="8" fill="#5a5848" font-family="sans-serif" font-weight="500">LEGEND</text>
+            <rect x="202" y="313" width="10" height="7" rx="1" fill="#f0c050" stroke="#c09020" stroke-width="0.5"/>
+            <text x="216" y="320" font-size="8" fill="#5a5848" font-family="sans-serif">Solar plant</text>
+            <circle cx="207" cy="330" r="5" fill="#b8d8f0" stroke="#3a8ad4" stroke-width="0.5"/>
+            <text x="216" y="333" font-size="8" fill="#5a5848" font-family="sans-serif">Wind farm</text>
+            <circle cx="207" cy="342" r="5" fill="#c8ede8" stroke="#3aada0" stroke-width="0.5"/>
+            <text x="216" y="345" font-size="8" fill="#5a5848" font-family="sans-serif">Hydro</text>
+            <line x1="200" y1="354" x2="215" y2="354" stroke="#d04020" stroke-width="1.5" stroke-dasharray="4,2"/>
+            <text x="218" y="357" font-size="8" fill="#d04020" font-family="sans-serif">Congested line</text>
+          </svg>
+        </div>
+
+        <!-- Battery storage table -->
+        <div style="background:#ede9d8;border-top:1px solid #ccc8b4;padding:8px 12px;">
+          <div style="font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:#7a7860;margin-bottom:6px">Battery Storage</div>
+          <table class="battery-table">
+            <thead>
+              <tr><th>Region</th><th>Charge</th><th>SoC</th><th>Capacity</th><th>Dispatch</th><th>Revenue</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Nevada</td>
+                <td><div class="soc-bar"><div class="soc-fill" style="width:75%;background:#3a8840"></div></div></td>
+                <td>75%</td><td>200 MWh</td>
+                <td class="dispatch-pos">+15 MW</td>
+                <td style="font-size:10px;color:#3a6010">$2,130/h</td>
+              </tr>
+              <tr>
+                <td>Texas</td>
+                <td><div class="soc-bar"><div class="soc-fill" style="width:40%;background:#d06020"></div></div></td>
+                <td>40%</td><td>150 MWh</td>
+                <td class="dispatch-neg">−8 MW</td>
+                <td style="font-size:10px;color:#c03820">−$456/h</td>
+              </tr>
+              <tr>
+                <td>New York</td>
+                <td><div class="soc-bar"><div class="soc-fill" style="width:62%;background:#3a7ad4"></div></div></td>
+                <td>62%</td><td>180 MWh</td>
+                <td class="dispatch-pos">+5 MW</td>
+                <td style="font-size:10px;color:#3a6010">$710/h</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- RIGHT PANEL -->
+      <div class="right-panel">
+        <div class="panel-title">Alerts</div>
+        <div class="alert-item">
+          <div class="alert-icon alert-red">▲</div>
+          <div class="alert-text">Solar outage — AZ node offline</div>
+          <div class="alert-time">12:59</div>
+        </div>
+        <div class="alert-item">
+          <div class="alert-icon alert-amber">▲</div>
+          <div class="alert-text">Congestion: Atlanta–Dallas line at 94%</div>
+          <div class="alert-time">17:40</div>
+        </div>
+        <div class="alert-item">
+          <div class="alert-icon alert-amber">▲</div>
+          <div class="alert-text">Low inertia warning — WECC region</div>
+          <div class="alert-time">18:05</div>
+        </div>
+        <div class="alert-item">
+          <div class="alert-icon alert-blue">▲</div>
+          <div class="alert-text">Predictive: Solar −8 GW in 2h (cloud front NW)</div>
+          <div class="alert-time">18:38</div>
+        </div>
+        <div class="alert-item">
+          <div class="alert-icon alert-blue">i</div>
+          <div class="alert-text">Demand spike forecast 88.3 GW at 18:30 EST</div>
+          <div class="alert-time">18:40</div>
+        </div>
+
+        <div class="panel-title" style="margin-top:8px">Market Price</div>
+        <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:4px">
+          <span class="price-big">$142</span>
+          <span class="price-unit">/MWh</span>
+          <span class="price-delta">↑ 8.3%</span>
+        </div>
+        <div style="font-size:10px;color:#7a7860;margin-bottom:4px">Carbon credit: $48/t · Curtailment cost: $1.4M today</div>
+        <div class="forecast-chart"><canvas id="priceChart"></canvas></div>
+
+        <div class="panel-title" style="margin-top:10px">Demand Forecast — 24h</div>
+        <div style="font-size:10px;color:#c04828;margin-bottom:4px">Peak: 88.3 GW at ~18:30 EST</div>
+        <div class="forecast-chart"><canvas id="demandChart"></canvas></div>
+
+        <div class="panel-title" style="margin-top:10px">Scenario Engine</div>
+        <div style="font-size:10px;color:#6a6854;margin-bottom:6px">Simulate what-if events</div>
+        <div>
+          <span class="scenario-btn" onclick="sendPrompt('Simulate a cascade failure: what happens if the Chicago transmission hub goes offline?')">Cascade failure ↗</span>
+          <span class="scenario-btn" onclick="sendPrompt('Simulate a cloud front reducing Southwest solar by 80% for 4 hours — how does the grid respond?')">Cloud front ↗</span>
+          <span class="scenario-btn" onclick="sendPrompt('Simulate a summer demand spike of +20GW — which assets dispatch first?')">Demand spike ↗</span>
+          <span class="scenario-btn" onclick="sendPrompt('Optimize battery dispatch across Nevada, Texas, and New York for maximum revenue given current prices')">Battery optimize ↗</span>
+        </div>
+
+        <div class="panel-title" style="margin-top:10px">Asset Health</div>
+        <div class="stat-row">
+          <span class="stat-label">Underperforming</span>
+          <span class="stat-val" style="color:#c04828">4 assets</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Maintenance queue</span>
+          <span class="stat-val">7 scheduled</span>
+        </div>
+        <div style="font-size:10px;color:#7a7860;margin-top:2px">TX Wind Farm B: −22% vs expected</div>
+      </div>
+    </div>
+
+    <!-- Bottom bar -->
+    <div class="bottom-bar">
+      <div class="bottom-btn" onclick="sendPrompt('Walk me through how to simulate a grid outage event in this system')">⊟ Simulate Outage</div>
+      <div class="bottom-btn" onclick="sendPrompt('Run a 24-hour renewable generation forecast for the US grid')">⊟ Run Forecast</div>
+      <div class="bottom-btn" onclick="sendPrompt('Optimize battery dispatch across all storage nodes for the next 4 hours')">⊟ Battery Dispatch</div>
+      <div class="bottom-btn" onclick="sendPrompt('Analyze current grid stability: frequency, inertia, and congestion risks')">⊙ Grid Stability</div>
+      <div class="bottom-btn" onclick="sendPrompt('Export a grid operations report for the last 24 hours')">⊟ Export Report</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+// Clock
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getUTCHours()).padStart(2,'0');
+  const m = String(now.getUTCMinutes()).padStart(2,'0');
+  const s = String(now.getUTCSeconds()).padStart(2,'0');
+  const el = document.getElementById('clk');
+  if(el) el.textContent = h+':'+m+':'+s+' UTC';
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// Mini production chart
+const miniCtx = document.getElementById('miniChart');
+if(miniCtx) {
+  new Chart(miniCtx, {
+    type: 'line',
+    data: {
+      labels: ['00','06','12','18','24'],
+      datasets: [
+        { label: 'Solar', data: [0,5,34,28,2], borderColor:'#e8a020', borderWidth:1.5, pointRadius:0, fill:false, tension:0.4 },
+        { label: 'Wind',  data: [22,18,28,30,25], borderColor:'#3a8ad4', borderWidth:1.5, pointRadius:0, fill:false, tension:0.4 },
+        { label: 'Demand',data: [60,58,75,82,70], borderColor:'#8a7848', borderWidth:1, pointRadius:0, fill:false, tension:0.4, borderDash:[3,2] }
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false } },
+      scales:{ x:{ ticks:{ font:{size:8}, color:'#9a9880' }, grid:{ color:'#ddd9c8' } }, y:{ ticks:{ font:{size:8}, color:'#9a9880' }, grid:{ color:'#ddd9c8' } } }
+    }
+  });
+}
+
+// Price chart
+const priceCtx = document.getElementById('priceChart');
+if(priceCtx) {
+  new Chart(priceCtx, {
+    type: 'line',
+    data: {
+      labels: ['12:00','14:00','16:00','18:00','20:00'],
+      datasets: [{
+        data: [118,128,135,142,138],
+        borderColor:'#c08020', borderWidth:1.5, pointRadius:2, pointBackgroundColor:'#c08020', fill:true, backgroundColor:'rgba(192,128,32,0.08)', tension:0.3
+      }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false } },
+      scales:{ x:{ ticks:{ font:{size:8}, color:'#9a9880' }, grid:{ color:'#ddd9c8' } }, y:{ ticks:{ font:{size:8}, color:'#9a9880', callback: v => '$'+v }, grid:{ color:'#ddd9c8' } } }
+    }
+  });
+}
+
+// Demand forecast chart
+const demCtx = document.getElementById('demandChart');
+if(demCtx) {
+  new Chart(demCtx, {
+    type: 'line',
+    data: {
+      labels: ['Now','6h','12h','18h','24h'],
+      datasets: [{
+        data: [82.4,78,75,88.3,76],
+        borderColor:'#3a6898', borderWidth:1.5, pointRadius:[3,2,2,4,2],
+        pointBackgroundColor:['#3a6898','#3a6898','#3a6898','#d04828','#3a6898'],
+        fill:true, backgroundColor:'rgba(58,104,152,0.1)', tension:0.4
+      }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false } },
+      scales:{ x:{ ticks:{ font:{size:8}, color:'#9a9880' }, grid:{ color:'#ddd9c8' } }, y:{ min:60, max:95, ticks:{ font:{size:8}, color:'#9a9880' }, grid:{ color:'#ddd9c8' } } }
+    }
+  });
+}
+</script>
