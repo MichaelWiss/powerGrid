@@ -104,14 +104,14 @@ The service role key is a secret — it never leaves the server.
 
 ---
 
-## Iteration 3 — The Map
+## Iteration 3 — The Map ✅ (Complete)
 
-### What You'll Build
+### What You Built
 - Full-screen Mapbox GL map on `/map`
 - 20 generation nodes as color-coded markers (solar=gold, wind=blue, hydro=teal, etc.)
-- Transmission lines drawn between nodes
+- 16 transmission lines seeded and rendered on the live map
 - Click a node → side panel with details
-- Reusable map component shared between `/map` (full-screen) and `/` (embedded)
+- Reusable map component shared between `/map` (full-screen) and `/` (embedded compact map)
 
 ### Concepts You'll Learn
 
@@ -507,3 +507,74 @@ Simulated SCADA ─→ Cron Job ──→ Grid Snapshot ──→ Postgres
 ```
 
 Every iteration adds a new piece to this pipeline. By Iteration 5, data flows end-to-end. Iterations 6–10 add more UI, more features, and production hardening.
+
+---
+
+## Iteration 11 — Global Expansion
+
+Expand coverage from US-only to worldwide. The core architecture (PostGIS, Mapbox, Open-Meteo, GeoJSON, PyPSA) is already location-agnostic — this iteration removes the US-specific assumptions layered on top.
+
+### Current US-Specific Dependencies
+- **Seed data:** 20 US power plants, US regions (WECC, ERCOT, MISO, NYISO, SERC)
+- **Schema:** `frequency_hz` defaults to 60 Hz (Europe/Asia/Africa use 50 Hz)
+- **Map:** Hardcoded `US_CENTER [-98.5, 39.5]` and US zoom levels in `GridMap.tsx`
+- **Demo page:** SVG is a US landmass outline with US city labels
+- **Coordinate display:** Hardcoded `°W` suffix in `MapPageClient.tsx` — fails for Eastern Hemisphere
+- **Demand model (Iteration 8):** Planned hourly profiles are US-shaped
+- **Interconnect flow:** References "West→East", "ERCOT", "Canada" in demo
+
+### Step 1 — Multi-Region Data Model
+- Add a `grid_regions` reference table: name, country ISO code, nominal frequency (50/60 Hz), currency, timezone, map center/zoom defaults
+- Change `generation_nodes.region` to reference `grid_regions` (or use country ISO codes alongside the existing free-text field)
+- Make `frequency_hz` default dynamic per region rather than hardcoded 60
+
+### Step 2 — Global Seed Data
+- Expand `seed-nodes.ts` to include international plants: European offshore wind (Hornsea, Dogger Bank), Chinese solar (Tengger Desert), Brazilian hydro (Itaipu), Indian wind (Muppandal), etc.
+- Make the script region-selectable: `npx tsx scripts/seed-nodes.ts --region=global` (or `--region=us`, `--region=eu`)
+
+### Step 3 — Dynamic Map Centering
+- Replace hardcoded `US_CENTER` with auto-fit bounds: compute `LngLatBounds` from actual node data and call `map.fitBounds(...)`
+- Accept optional `center`/`zoom` props for manual override
+- Fix coordinate display in `MapPageClient.tsx` to show N/S and E/W correctly based on sign
+
+### Step 4 — Replace Demo SVG Map
+- The hardcoded US SVG in `/demo` should become a Mapbox-based mini-map or a region-agnostic diagram
+- Alternatively, keep the US SVG as a legacy reference and make the live `/map` page the canonical global view
+
+### Step 5 — Internationalize Units & Conventions
+- Currency display per region (USD, EUR, GBP, CNY, INR, BRL)
+- Frequency standards: 50 Hz vs 60 Hz, different stability thresholds
+- Voltage standards per region
+- Demand scale differs massively: US ~800 GW peak, UK ~40 GW, India ~250 GW, Germany ~80 GW
+- Timezone-aware labels in charts and alerts
+
+### Step 6 — Region-Aware Demand Model
+- The hourly demand profile (Iteration 8) needs per-region curves — tropical countries have different A/C patterns, industrial nations peak differently, Southern Hemisphere seasons are inverted
+- Temperature coefficients vary by climate zone
+- Weekend/weekday patterns differ by culture (Friday/Saturday weekend in some Middle East countries)
+
+### Feasibility Notes
+**Already global (no work needed):** PostGIS, Mapbox, Open-Meteo, PyPSA, GeoJSON, WebSockets, Supabase
+**Moderate effort (~2-3 days):** Schema changes, map auto-centering, coordinate formatting, seed data expansion
+**High effort (ongoing):** Realistic demand profiles, market pricing models, and grid data for non-US/EU regions — US (EIA) and EU (ENTSO-E) have excellent open data, but many countries have limited or no public grid data. This is a data sourcing challenge more than a code challenge.
+
+### Concepts You'll Learn
+
+**Data Normalization & Reference Tables**
+Instead of scattering region-specific constants in code, centralize them in the database. A `grid_regions` table becomes the single source of truth for frequency, currency, timezone — every component reads from it rather than assuming US defaults.
+
+**Responsive Map Viewport (`fitBounds`)**
+Instead of hardcoding a center point, compute the bounding box of your data and let Mapbox frame it:
+```js
+const bounds = new mapboxgl.LngLatBounds();
+nodes.forEach(n => bounds.extend([n.lng, n.lat]));
+map.fitBounds(bounds, { padding: 40 });
+```
+This works for 20 nodes in Texas or 200 nodes across 6 continents.
+
+**Internationalization (i18n) Patterns**
+Formatting numbers, currencies, and dates for different locales using `Intl.NumberFormat` and `Intl.DateTimeFormat` — built into every modern browser, no library needed:
+```js
+new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(142)
+// → "142,00 €"
+```

@@ -12,6 +12,9 @@
 */
 
 import { supabaseServer } from "@/lib/supabase/server";
+import { parseEWKBPoint } from "@/lib/geo";
+import DashboardMap from "./DashboardMap";
+import type { GridNode } from "@/components/GridMap";
 
 const TYPE_META: Record<string, { icon: string; color: string }> = {
   solar:   { icon: "☀",  color: "var(--color-solar)" },
@@ -24,7 +27,7 @@ const TYPE_META: Record<string, { icon: string; color: string }> = {
 export default async function CommandCenterPage() {
   const { data: nodes, error } = await supabaseServer
     .from("generation_nodes")
-    .select("id, name, type, capacity_mw, region, status")
+    .select("id, name, type, capacity_mw, current_output_mw, status, efficiency_pct, region, location")
     .order("type")
     .order("capacity_mw", { ascending: false });
 
@@ -37,6 +40,26 @@ export default async function CommandCenterPage() {
       </div>
     );
   }
+
+  // Parse PostGIS EWKB hex → { lng, lat } for the map
+  const mapNodes: GridNode[] = nodes
+    .map((row) => {
+      const coords = parseEWKBPoint(row.location as string);
+      if (!coords) return null;
+      return {
+        id: row.id,
+        name: row.name,
+        type: row.type,
+        capacity_mw: Number(row.capacity_mw),
+        current_output_mw: Number(row.current_output_mw),
+        status: row.status,
+        efficiency_pct: Number(row.efficiency_pct),
+        region: row.region,
+        lng: coords.lng,
+        lat: coords.lat,
+      };
+    })
+    .filter((n): n is GridNode => n !== null);
 
   // ── Summary stats ──
   const totalCapacity = nodes.reduce((sum, n) => sum + Number(n.capacity_mw), 0);
@@ -91,6 +114,17 @@ export default async function CommandCenterPage() {
             </div>
           );
         })}
+      </div>
+
+      {/* ── EMBEDDED MAP ── */}
+      <div className="mb-4">
+        <div
+          className="mb-2 border-b pb-1 text-[10px] font-medium uppercase tracking-widest"
+          style={{ color: "var(--text-muted)", borderColor: "var(--border-panel)" }}
+        >
+          Grid Map
+        </div>
+        <DashboardMap nodes={mapNodes} />
       </div>
 
       {/* ── SECTION TITLE ── */}

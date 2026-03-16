@@ -27,7 +27,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen flex-col" style={{ background: "var(--bg-primary)" }}>
+    <div className="flex h-screen flex-col overflow-hidden" style={{ background: "var(--bg-primary)" }}>
       {/* HEADER */}
       <header
         className="flex items-center justify-between px-4 py-2"
@@ -64,7 +64,7 @@ export default function DashboardLayout({
       </nav>
 
       {/* PAGE CONTENT — each page renders here */}
-      <main className="flex-1">{children}</main>
+      <main className="relative min-h-0 flex-1 overflow-auto">{children}</main>
 
       {/* BOTTOM BAR */}
       <footer className="flex" style={{ background: "var(--bg-dark)", borderTop: "1px solid var(--border-dark)" }}>
