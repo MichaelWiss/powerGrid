@@ -6,9 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed": "tsx scripts/seed-nodes.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.99.2",
     "chart.js": "^4.5.1",
     "next": "16.1.6",
     "react": "19.2.3",
@@ -23,6 +25,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }
