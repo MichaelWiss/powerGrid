@@ -25,6 +25,7 @@
 */
 
 import { create } from "zustand";
+import { MOCK_ALERTS, MOCK_SNAPSHOT } from "./mockData";
 import type { MockGenerationNode, MockGridSnapshot, MockAlert } from "./mockData";
 
 // ── Store Shape ──────────────────────────────────────────────────
@@ -59,10 +60,10 @@ interface GridState {
 // ── Store ────────────────────────────────────────────────────────
 
 export const useGridStore = create<GridState>((set) => ({
-  // ── Initial state (empty until RealtimeProvider hydrates) ──
+  // ── Initial state ──
   nodes: [],
-  latestSnapshot: null,
-  alerts: [],
+  latestSnapshot: MOCK_SNAPSHOT,
+  alerts: MOCK_ALERTS,
 
   // ── Actions ──
 

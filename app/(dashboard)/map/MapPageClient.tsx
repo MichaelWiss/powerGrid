@@ -14,22 +14,15 @@
 
 import { useState } from "react";
 import GridMap, { type GridNode, type TransmissionLine } from "@/components/GridMap";
+import { TYPE_COLORS, TYPE_ICONS } from "@/lib/gridTypes";
 
-const TYPE_ICONS: Record<string, string> = {
-  solar: "☀",
-  wind: "🌬",
-  hydro: "💧",
-  gas: "🔥",
-  battery: "🔋",
-};
+function getTypeColor(type: string): string {
+  return TYPE_COLORS[type as keyof typeof TYPE_COLORS] ?? "#888";
+}
 
-const TYPE_COLORS: Record<string, string> = {
-  solar: "var(--color-solar)",
-  wind: "var(--color-wind)",
-  hydro: "var(--color-hydro)",
-  gas: "var(--color-gas)",
-  battery: "var(--color-battery)",
-};
+function getTypeIcon(type: string): string {
+  return TYPE_ICONS[type as keyof typeof TYPE_ICONS] ?? "?";
+}
 
 export default function MapPageClient({ nodes, lines = [] }: { nodes: GridNode[]; lines?: TransmissionLine[] }) {
   const [selectedNode, setSelectedNode] = useState<GridNode | null>(null);
@@ -71,15 +64,15 @@ export default function MapPageClient({ nodes, lines = [] }: { nodes: GridNode[]
           <div className="mb-3 flex items-start gap-2">
             <span
               className="flex h-8 w-8 items-center justify-center rounded-sm text-lg"
-              style={{ background: "var(--bg-panel)", border: `2px solid ${TYPE_COLORS[selectedNode.type] ?? "#888"}` }}
+              style={{ background: "var(--bg-panel)", border: `2px solid ${getTypeColor(selectedNode.type)}` }}
             >
-              {TYPE_ICONS[selectedNode.type] ?? "?"}
+              {getTypeIcon(selectedNode.type)}
             </span>
             <div>
               <div className="text-[13px] font-medium leading-tight" style={{ color: "var(--text-primary)" }}>
                 {selectedNode.name}
               </div>
-              <div className="text-[10px] capitalize" style={{ color: TYPE_COLORS[selectedNode.type] ?? "#888" }}>
+              <div className="text-[10px] capitalize" style={{ color: getTypeColor(selectedNode.type) }}>
                 {selectedNode.type}
               </div>
             </div>
@@ -100,8 +93,8 @@ export default function MapPageClient({ nodes, lines = [] }: { nodes: GridNode[]
                 <span
                   className="rounded-sm px-1.5 py-0.5 text-[9px] font-medium tracking-wider"
                   style={{
-                    background: selectedNode.status === "online" ? "#d4e8c2" : "#f0d4c4",
-                    color: selectedNode.status === "online" ? "#3a6010" : "#8a3010",
+                    background: selectedNode.status === "online" ? "#d4e8c2" : selectedNode.status === "maintenance" ? "#f0e4c4" : "#f0d4c4",
+                    color: selectedNode.status === "online" ? "#3a6010" : selectedNode.status === "maintenance" ? "#7a5010" : "#8a3010",
                   }}
                 >
                   {selectedNode.status.toUpperCase()}

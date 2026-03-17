@@ -11,6 +11,7 @@
 import DashboardMap from "./DashboardMap";
 import type { GridNode } from "@/components/GridMap";
 import { useGridStore } from "@/lib/store";
+import { TYPE_COLORS } from "@/lib/gridTypes";
 
 /*
   SUPABASE SERVER PATH (kept for compatibility)
@@ -21,11 +22,11 @@ import { useGridStore } from "@/lib/store";
 // ── Helpers ──────────────────────────────────────────────────────
 
 const TYPE_META: Record<string, { icon: string; color: string; barColor: string }> = {
-  solar:   { icon: "☀",  color: "var(--color-solar)",   barColor: "#e8a020" },
-  wind:    { icon: "🌬", color: "var(--color-wind)",    barColor: "#3a8ad4" },
-  hydro:   { icon: "💧", color: "var(--color-hydro)",   barColor: "#3aada0" },
-  battery: { icon: "🔋", color: "var(--color-battery)", barColor: "#5a7ad4" },
-  gas:     { icon: "🔥", color: "var(--color-gas)",     barColor: "#c05030" },
+  solar:   { icon: "☀",  color: "var(--color-solar)",   barColor: TYPE_COLORS.solar },
+  wind:    { icon: "🌬", color: "var(--color-wind)",    barColor: TYPE_COLORS.wind },
+  hydro:   { icon: "💧", color: "var(--color-hydro)",   barColor: TYPE_COLORS.hydro },
+  battery: { icon: "🔋", color: "var(--color-battery)", barColor: TYPE_COLORS.battery },
+  gas:     { icon: "🔥", color: "var(--color-gas)",     barColor: TYPE_COLORS.gas },
 };
 
 const SEVERITY_STYLE: Record<string, { bg: string; color: string; label: string }> = {

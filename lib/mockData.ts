@@ -4,11 +4,10 @@
   First-render fallback data shaped like Supabase payloads for the
   three tables: grid_snapshots, generation_nodes, alerts.
 
-  Nodes are loaded from data/eia-plants.json (5,200+ real US plants from
-  the EIA API). If that file is missing, falls back to 20 hand-written plants.
+  Important: keep this file light and static.
+  Large EIA data is loaded via /api/grid-nodes at runtime so we don't bundle
+  ~1-2 MB of JSON into client pages.
 */
-
-import eiaData from "@/data/eia-plants.json";
 
 export interface MockGridSnapshot {
   id: string;
@@ -77,8 +76,45 @@ export const MOCK_SNAPSHOT: MockGridSnapshot = {
   ramp_rate_mw_min: 420,
 };
 
-// generation_nodes — loaded from EIA cached data (5,200+ real US plants)
-export const MOCK_NODES: MockGenerationNode[] = (eiaData.plants as MockGenerationNode[]);
+// generation_nodes — tiny fallback set used if API data is unavailable
+export const MOCK_NODES: MockGenerationNode[] = [
+  {
+    id: "fallback-solar-1",
+    name: "Fallback Solar (CA)",
+    type: "solar",
+    capacity_mw: 320,
+    current_output_mw: 88,
+    lat: 35.2,
+    lng: -119.0,
+    region: "WECC",
+    status: "online",
+    efficiency_pct: 22,
+  },
+  {
+    id: "fallback-wind-1",
+    name: "Fallback Wind (TX)",
+    type: "wind",
+    capacity_mw: 460,
+    current_output_mw: 146,
+    lat: 32.2,
+    lng: -100.3,
+    region: "ERCOT",
+    status: "online",
+    efficiency_pct: 35,
+  },
+  {
+    id: "fallback-battery-1",
+    name: "Fallback BESS (CA)",
+    type: "battery",
+    capacity_mw: 180,
+    current_output_mw: -22,
+    lat: 36.8,
+    lng: -121.8,
+    region: "WECC",
+    status: "maintenance",
+    efficiency_pct: 85,
+  },
+];
 
 // alerts (one or two rows is enough)
 export const MOCK_ALERTS: MockAlert[] = [

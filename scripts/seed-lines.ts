@@ -19,7 +19,7 @@ import { resolve } from "path";
 
 // ── Load .env.local manually ─────────────────────────────────────
 const envPath = resolve(process.cwd(), ".env.local");
-let envVars: Record<string, string> = {};
+const envVars: Record<string, string> = {};
 try {
   const raw = readFileSync(envPath, "utf-8");
   for (const line of raw.split("\n")) {

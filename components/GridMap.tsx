@@ -19,6 +19,7 @@
 import { useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
+import { TYPE_COLORS, TYPE_ICONS } from "@/lib/gridTypes";
 
 // ── Types ────────────────────────────────────────────────────────
 export interface GridNode {
@@ -56,23 +57,6 @@ interface GridMapProps {
 }
 
 // ── Constants ────────────────────────────────────────────────────
-
-// Match the reference mockup's source colors
-const TYPE_COLORS: Record<string, string> = {
-  solar:   "#e8a020",
-  wind:    "#3a8ad4",
-  hydro:   "#3aada0",
-  gas:     "#c05030",
-  battery: "#5a7ad4",
-};
-
-const TYPE_ICONS: Record<string, string> = {
-  solar:   "☀",
-  wind:    "🌬",
-  hydro:   "💧",
-  gas:     "🔥",
-  battery: "🔋",
-};
 
 // US center for initial view
 const US_CENTER: [number, number] = [-98.5, 39.5];
@@ -161,12 +145,14 @@ export default function GridMap({ nodes, lines = [], compact = false, onNodeClic
       mapLoaded.current = true;
 
       // ── Transmission lines layer ──────────────────────────────
-      if (lines.length > 0) {
-        map.addSource("transmission-lines", {
-          type: "geojson",
-          data: linesToGeoJSON(lines),
-        });
+      // Source is always created (even with empty data) so the reactive
+      // update effect below can call setData() when lines arrive later.
+      map.addSource("transmission-lines", {
+        type: "geojson",
+        data: linesToGeoJSON(lines),
+      });
 
+      if (lines.length > 0) {
         map.addLayer({
           id: "transmission-lines-layer",
           type: "line",
@@ -411,6 +397,16 @@ export default function GridMap({ nodes, lines = [], compact = false, onNodeClic
       source.setData(nodesToGeoJSON(nodes));
     }
   }, [nodes]);
+
+  // Keep transmission lines in sync when data updates without remounting.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded.current) return;
+    const source = map.getSource("transmission-lines") as mapboxgl.GeoJSONSource | undefined;
+    if (source) {
+      source.setData(linesToGeoJSON(lines));
+    }
+  }, [lines]);
 
   return (
     <div className="relative h-full w-full" style={{ minHeight: compact ? 300 : "100%" }}>

@@ -13,6 +13,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import RealtimeProvider from "@/components/RealtimeProvider";
 
 const NAV_ITEMS = [
@@ -56,14 +57,14 @@ export default function DashboardLayout({
         style={{ background: "var(--bg-dark)", borderBottom: "1px solid var(--border-dark)" }}
       >
         {NAV_ITEMS.map((item) => (
-          <a
+          <Link
             key={item.href}
             href={item.href}
             className="px-4 py-2 text-[10px] uppercase tracking-wider transition-colors"
             style={{ color: "var(--text-on-dark-muted)", borderRight: "1px solid var(--bg-dark-border)" }}
           >
             {item.label}
-          </a>
+          </Link>
         ))}
       </nav>
 

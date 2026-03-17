@@ -17,6 +17,8 @@ import { resolve } from "path";
 
 const API_BASE = "https://api.eia.gov/v2/electricity/operating-generator-capacity/data/";
 const PAGE_SIZE = 5000;
+const FETCH_TIMEOUT_MS = 15000;
+const MAX_PAGES_PER_FUEL = 50;
 
 const FUEL_MAP: Record<string, string> = {
   SUN: "solar",
@@ -38,6 +40,18 @@ interface EIARow {
   longitude: string;
 }
 
+function simulateOutput(type: string, capacityMw: number): number {
+  const cf =
+    type === "solar" ? 0.15 + Math.random() * 0.15 :
+    type === "wind" ? 0.25 + Math.random() * 0.15 :
+    type === "hydro" ? 0.35 + Math.random() * 0.25 :
+    type === "gas" ? 0.4 + Math.random() * 0.3 :
+    type === "battery" ? -0.2 + Math.random() * 0.6 :
+    0.5;
+
+  return Math.round(capacityMw * cf);
+}
+
 async function fetchPage(apiKey: string, fuelCode: string, offset: number) {
   const params = new URLSearchParams({
     api_key: apiKey,
@@ -55,7 +69,11 @@ async function fetchPage(apiKey: string, fuelCode: string, offset: number) {
     end: "2025-12",
   });
 
-  const res = await fetch(`${API_BASE}?${params.toString()}`);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const res = await fetch(`${API_BASE}?${params.toString()}`, { signal: controller.signal }).finally(() => {
+    clearTimeout(timeoutId);
+  });
   if (!res.ok) throw new Error(`EIA API: ${res.status}`);
   const json = await res.json();
   return {
@@ -65,8 +83,8 @@ async function fetchPage(apiKey: string, fuelCode: string, offset: number) {
 }
 
 export async function POST(request: NextRequest) {
-  // Auth check
-  const secret = request.headers.get("x-cron-secret") ?? request.nextUrl.searchParams.get("secret");
+  // Auth check — header only; avoid query-param to keep secret out of server logs
+  const secret = request.headers.get("x-cron-secret");
   if (secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -84,13 +102,22 @@ export async function POST(request: NextRequest) {
     const type = FUEL_MAP[fuelCode];
     let offset = 0;
     let total = Infinity;
+    let pagesFetched = 0;
+    const plantMap = new Map<string, Record<string, unknown>>();
 
     while (offset < total) {
+      if (pagesFetched >= MAX_PAGES_PER_FUEL) {
+        return NextResponse.json(
+          { error: `Aborted ingest for ${fuelCode}: exceeded ${MAX_PAGES_PER_FUEL} pages` },
+          { status: 502 },
+        );
+      }
+
       const page = await fetchPage(apiKey, fuelCode, offset);
       total = page.total;
+      pagesFetched += 1;
 
       // Deduplicate by plantid, aggregate capacity
-      const plantMap = new Map<string, Record<string, unknown>>();
       for (const row of page.rows) {
         const mw = parseFloat(row["nameplate-capacity-mw"]);
         const lat = parseFloat(row.latitude);
@@ -119,12 +146,6 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      for (const plant of plantMap.values()) {
-        if ((plant as { capacity_mw: number }).capacity_mw >= minMw) {
-          allPlants.push(plant);
-        }
-      }
-
       offset += PAGE_SIZE;
       if (page.rows.length > 0) {
         const smallest = parseFloat(page.rows[page.rows.length - 1]["nameplate-capacity-mw"]);
@@ -132,19 +153,37 @@ export async function POST(request: NextRequest) {
       }
       if (page.rows.length < PAGE_SIZE) break;
     }
+
+    for (const plant of plantMap.values()) {
+      const typedPlant = plant as { capacity_mw: number; current_output_mw: number };
+      if (typedPlant.capacity_mw >= minMw) {
+        typedPlant.current_output_mw = simulateOutput(type, typedPlant.capacity_mw);
+        allPlants.push(typedPlant);
+      }
+    }
   }
 
   // Write cached file
+  // NOTE: writeFileSync only succeeds when the server has a writable filesystem
+  // (local dev / persistent server). In read-only serverless environments
+  // (Vercel, etc.) this will return a 500 with a clear message rather than crash.
   const outPath = resolve(process.cwd(), "data/eia-plants.json");
-  writeFileSync(
-    outPath,
-    JSON.stringify({
-      generated_at: new Date().toISOString(),
-      min_capacity_mw: minMw,
-      total: allPlants.length,
-      plants: allPlants,
-    }),
-  );
+  try {
+    writeFileSync(
+      outPath,
+      JSON.stringify({
+        generated_at: new Date().toISOString(),
+        min_capacity_mw: minMw,
+        total: allPlants.length,
+        plants: allPlants,
+      }),
+    );
+  } catch (err) {
+    return NextResponse.json(
+      { error: "Failed to write cache file — filesystem may be read-only", detail: String(err) },
+      { status: 500 },
+    );
+  }
 
   return NextResponse.json({
     success: true,

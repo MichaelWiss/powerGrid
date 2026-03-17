@@ -10,13 +10,15 @@
 
 import { useState } from "react";
 import GridMap, { type GridNode } from "@/components/GridMap";
+import { TYPE_COLORS, TYPE_ICONS } from "@/lib/gridTypes";
 
-const TYPE_COLORS: Record<string, string> = {
-  solar: "#e8a020", wind: "#3a8ad4", hydro: "#3aada0", gas: "#c05030", battery: "#5a7ad4",
-};
-const TYPE_ICONS: Record<string, string> = {
-  solar: "☀", wind: "🌬", hydro: "💧", gas: "🔥", battery: "🔋",
-};
+function getTypeColor(type: string): string {
+  return TYPE_COLORS[type as keyof typeof TYPE_COLORS] ?? "#888";
+}
+
+function getTypeIcon(type: string): string {
+  return TYPE_ICONS[type as keyof typeof TYPE_ICONS] ?? "?";
+}
 
 export default function DashboardMap({ nodes }: { nodes: GridNode[] }) {
   const [selected, setSelected] = useState<GridNode | null>(null);
@@ -35,15 +37,15 @@ export default function DashboardMap({ nodes }: { nodes: GridNode[] }) {
             <div className="flex items-center gap-1.5">
               <span
                 className="flex h-6 w-6 items-center justify-center rounded-sm text-sm"
-                style={{ border: `2px solid ${TYPE_COLORS[selected.type] ?? "#888"}` }}
+                style={{ border: `2px solid ${getTypeColor(selected.type)}` }}
               >
-                {TYPE_ICONS[selected.type] ?? "?"}
+                {getTypeIcon(selected.type)}
               </span>
               <div>
                 <div className="text-[11px] font-medium leading-tight" style={{ color: "#2a2820" }}>
                   {selected.name}
                 </div>
-                <div className="text-[9px] capitalize" style={{ color: TYPE_COLORS[selected.type] ?? "#888" }}>
+                <div className="text-[9px] capitalize" style={{ color: getTypeColor(selected.type) }}>
                   {selected.type}
                 </div>
               </div>
