@@ -193,25 +193,69 @@ export default function GridMap({ nodes, lines = [], compact = false, onNodeClic
         });
       }
 
-      // ── Node markers layer ────────────────────────────────────
+      // ── Node markers layer (clustered) ───────────────────────
       // Read from nodesRef so we always get the latest data,
       // even if the store hydrated before the map finished loading.
       map.addSource("grid-nodes", {
         type: "geojson",
         data: nodesToGeoJSON(nodesRef.current),
+        cluster: true,
+        clusterMaxZoom: 9,
+        clusterRadius: 50,
+        clusterProperties: {
+          // Sum capacity for cluster display
+          totalCapacity: ["+", ["get", "capacity_mw"]],
+        },
       });
 
-      // Outer glow ring (pulse effect feel)
+      // ── Cluster circles ────────────────────────────────────
+      map.addLayer({
+        id: "cluster-circles",
+        type: "circle",
+        source: "grid-nodes",
+        filter: ["has", "point_count"],
+        paint: {
+          "circle-radius": [
+            "step", ["get", "point_count"],
+            16, 20, 22, 100, 28, 500, 34,
+          ],
+          "circle-color": [
+            "step", ["get", "point_count"],
+            "#5a9a50", 20, "#3a8ad4", 100, "#e8a020", 500, "#c05030",
+          ],
+          "circle-opacity": 0.75,
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#fff",
+          "circle-stroke-opacity": 0.5,
+        },
+      });
+
+      // Cluster count label
+      map.addLayer({
+        id: "cluster-count",
+        type: "symbol",
+        source: "grid-nodes",
+        filter: ["has", "point_count"],
+        layout: {
+          "text-field": "{point_count_abbreviated}",
+          "text-font": ["DIN Pro Medium", "Arial Unicode MS Bold"],
+          "text-size": 12,
+        },
+        paint: {
+          "text-color": "#fff",
+        },
+      });
+
+      // ── Unclustered: glow ring ──────────────────────────────
       map.addLayer({
         id: "node-glow",
         type: "circle",
         source: "grid-nodes",
+        filter: ["!", ["has", "point_count"]],
         paint: {
           "circle-radius": [
             "interpolate", ["linear"], ["get", "capacity_mw"],
-            200, 12,
-            1500, 18,
-            7000, 24,
+            10, 8, 200, 12, 1500, 18, 7000, 24,
           ],
           "circle-color": [
             "match",
@@ -228,17 +272,16 @@ export default function GridMap({ nodes, lines = [], compact = false, onNodeClic
         },
       });
 
-      // Main circle marker
+      // ── Unclustered: main circle marker ───────────────────
       map.addLayer({
         id: "node-markers",
         type: "circle",
         source: "grid-nodes",
+        filter: ["!", ["has", "point_count"]],
         paint: {
           "circle-radius": [
             "interpolate", ["linear"], ["get", "capacity_mw"],
-            200, 5,
-            1500, 8,
-            7000, 12,
+            10, 3, 200, 5, 1500, 8, 7000, 12,
           ],
           "circle-color": [
             "match",
@@ -251,7 +294,7 @@ export default function GridMap({ nodes, lines = [], compact = false, onNodeClic
             "#888",
           ],
           "circle-stroke-color": "#1a1a0e",
-          "circle-stroke-width": 1.5,
+          "circle-stroke-width": 1,
           "circle-opacity": [
             "match",
             ["get", "status"],
@@ -262,12 +305,13 @@ export default function GridMap({ nodes, lines = [], compact = false, onNodeClic
         },
       });
 
-      // Node labels (full-screen only)
+      // Node labels (full-screen only, high zoom)
       if (!compact) {
         map.addLayer({
           id: "node-labels",
           type: "symbol",
           source: "grid-nodes",
+          filter: ["!", ["has", "point_count"]],
           layout: {
             "text-field": ["get", "name"],
             "text-size": 10,
@@ -281,12 +325,33 @@ export default function GridMap({ nodes, lines = [], compact = false, onNodeClic
             "text-halo-color": "#f5f2ea",
             "text-halo-width": 1.5,
           },
-          minzoom: 5,
+          minzoom: 7,
         });
       }
 
-      // ── Interactions ──────────────────────────────────────────
-      // Cursor change on hover
+      // ── Interactions ────────────────────────────────────
+
+      // Click cluster → zoom in
+      map.on("click", "cluster-circles", (e) => {
+        const features = map.queryRenderedFeatures(e.point, { layers: ["cluster-circles"] });
+        if (!features.length) return;
+        const clusterId = features[0].properties!.cluster_id;
+        (map.getSource("grid-nodes") as mapboxgl.GeoJSONSource).getClusterExpansionZoom(clusterId, (err, zoom) => {
+          if (err) return;
+          const geom = features[0].geometry as GeoJSON.Point;
+          map.easeTo({ center: geom.coordinates as [number, number], zoom: zoom! });
+        });
+      });
+
+      // Cursor on clusters
+      map.on("mouseenter", "cluster-circles", () => {
+        map.getCanvas().style.cursor = "pointer";
+      });
+      map.on("mouseleave", "cluster-circles", () => {
+        map.getCanvas().style.cursor = "";
+      });
+
+      // Cursor on individual markers
       map.on("mouseenter", "node-markers", () => {
         map.getCanvas().style.cursor = "pointer";
       });
@@ -303,7 +368,7 @@ export default function GridMap({ nodes, lines = [], compact = false, onNodeClic
         }
       });
 
-      // Click → callback
+      // Click node → callback
       map.on("click", "node-markers", (e) => {
         if (e.features && e.features[0] && onNodeClick) {
           const props = e.features[0].properties!;
