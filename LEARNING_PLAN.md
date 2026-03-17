@@ -304,6 +304,16 @@ export function PriceChart({ data }) {
 ```
 Server Component fetches data → passes it as props → Client Component renders the chart.
 
+**Live Data Wiring (Future)**
+Several dashboard sections currently use static/mock values and will be wired to live Supabase data in later iterations:
+- **Alerts feed** — currently reads from Zustand store hydrated with mock alerts. Will subscribe to the `alerts` table via Supabase Realtime (Iteration 5 cron + Iteration 7 Server Actions for acknowledge).
+- **Battery Storage table** — hardcoded 3 rows. Will read from a `battery_storage` table with real SoC, dispatch, and revenue data once the SCADA simulator (Iteration 5) generates it.
+- **Interconnect Flow** — static values (West→East +3.2 GW, ERCOT Isolated, Canada +0.8 GW). Will come from an `interconnect_flows` table or computed from transmission line data.
+- **Market Price delta & carbon credit** — static display. Will be computed from time-series `grid_snapshots` data (current vs. rolling average).
+- **Demand Forecast** — placeholder mini bar chart. Will be replaced with real forecast data from the weather/demand model (Iteration 8).
+- **Asset Health** — static counts (4 underperforming, 7 scheduled). Will query `generation_nodes` filtering by efficiency thresholds and maintenance status.
+- **Scenario Engine buttons** — UI-only placeholders. Will trigger PyPSA simulations (Iteration 9).
+
 ---
 
 ## Iteration 7 — Server Actions & Mutations

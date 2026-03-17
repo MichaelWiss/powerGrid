@@ -10,6 +10,10 @@
   - Server Components: this file runs on the server by default (no "use client")
   - The {children} slot is where each page's content renders
 */
+"use client";
+
+import { useEffect, useState } from "react";
+import RealtimeProvider from "@/components/RealtimeProvider";
 
 const NAV_ITEMS = [
   { href: "/",          label: "Command Center" },
@@ -37,11 +41,11 @@ export default function DashboardLayout({
           className="text-[15px] font-medium uppercase tracking-wider"
           style={{ color: "var(--text-on-dark)" }}
         >
-          Grid Command Center
+          US Renewable Grid Command Center — <span className="font-normal" style={{ color: "var(--text-on-dark-muted)" }}>Real-Time Operations</span>
         </h1>
         <div className="flex items-center gap-4 text-xs" style={{ color: "var(--text-on-dark-muted)" }}>
-          <span style={{ color: "var(--text-on-dark)" }}>--:--:-- UTC</span>
-          <span className="inline-block h-2 w-2 rounded-full" style={{ background: "var(--color-danger)" }} />
+          <UtcClock />
+          <span className="inline-block h-2 w-2 animate-pulse rounded-full" style={{ background: "var(--color-danger)" }} />
           <span className="text-[11px]">LIVE</span>
         </div>
       </header>
@@ -64,7 +68,9 @@ export default function DashboardLayout({
       </nav>
 
       {/* PAGE CONTENT — each page renders here */}
-      <main className="relative min-h-0 flex-1 overflow-auto">{children}</main>
+      <main className="relative min-h-0 flex-1 overflow-auto">
+        <RealtimeProvider>{children}</RealtimeProvider>
+      </main>
 
       {/* BOTTOM BAR */}
       <footer className="flex" style={{ background: "var(--bg-dark)", borderTop: "1px solid var(--border-dark)" }}>
@@ -72,7 +78,7 @@ export default function DashboardLayout({
           (label) => (
             <div
               key={label}
-              className="flex-1 cursor-pointer py-2 text-center text-[10px] uppercase tracking-wider"
+              className="flex-1 cursor-pointer py-2 text-center text-[10px] uppercase tracking-wider transition-colors hover:text-[#e8e4d4]"
               style={{ color: "var(--text-subtle)", borderRight: "1px solid var(--bg-dark-border)" }}
             >
               {label}
@@ -81,5 +87,21 @@ export default function DashboardLayout({
         )}
       </footer>
     </div>
+  );
+}
+
+function UtcClock() {
+  const [time, setTime] = useState("");
+  useEffect(() => {
+    const tick = () =>
+      setTime(new Date().toISOString().slice(11, 19) + " UTC");
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <span style={{ color: "var(--text-on-dark)", fontVariantNumeric: "tabular-nums" }}>
+      {time}
+    </span>
   );
 }

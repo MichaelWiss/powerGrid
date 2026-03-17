@@ -129,6 +129,9 @@ function linesToGeoJSON(lines: TransmissionLine[]): GeoJSON.FeatureCollection {
 export default function GridMap({ nodes, lines = [], compact = false, onNodeClick }: GridMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
+  const mapLoaded = useRef(false);
+  const nodesRef = useRef(nodes);
+  nodesRef.current = nodes;
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
 
   useEffect(() => {
@@ -155,6 +158,8 @@ export default function GridMap({ nodes, lines = [], compact = false, onNodeClic
     }
 
     map.on("load", () => {
+      mapLoaded.current = true;
+
       // ── Transmission lines layer ──────────────────────────────
       if (lines.length > 0) {
         map.addSource("transmission-lines", {
@@ -189,9 +194,11 @@ export default function GridMap({ nodes, lines = [], compact = false, onNodeClic
       }
 
       // ── Node markers layer ────────────────────────────────────
+      // Read from nodesRef so we always get the latest data,
+      // even if the store hydrated before the map finished loading.
       map.addSource("grid-nodes", {
         type: "geojson",
-        data: nodesToGeoJSON(nodes),
+        data: nodesToGeoJSON(nodesRef.current),
       });
 
       // Outer glow ring (pulse effect feel)
@@ -324,6 +331,21 @@ export default function GridMap({ nodes, lines = [], compact = false, onNodeClic
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Surgical update: push new node data into the existing map source ──
+  // This runs whenever the `nodes` prop changes (e.g. store hydration,
+  // Realtime UPDATE). Mapbox diffs internally and only repaints changed
+  // markers — the map stays smooth at 60fps.
+  // If the map hasn't loaded yet, nodesRef ensures the load handler
+  // picks up the latest data automatically.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded.current) return;
+    const source = map.getSource("grid-nodes") as mapboxgl.GeoJSONSource | undefined;
+    if (source) {
+      source.setData(nodesToGeoJSON(nodes));
+    }
+  }, [nodes]);
 
   return (
     <div className="relative h-full w-full" style={{ minHeight: compact ? 300 : "100%" }}>

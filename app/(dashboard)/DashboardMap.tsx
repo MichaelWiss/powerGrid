@@ -12,13 +12,7 @@ import GridMap, { type GridNode } from "@/components/GridMap";
 
 export default function DashboardMap({ nodes }: { nodes: GridNode[] }) {
   return (
-    <div
-      className="overflow-hidden rounded-sm"
-      style={{
-        height: 320,
-        border: "1px solid var(--border-light)",
-      }}
-    >
+    <div className="h-full w-full overflow-hidden">
       <GridMap nodes={nodes} compact />
     </div>
   );
